@@ -42,6 +42,11 @@ indicator_options = {
     },
 }
 
+def reset_material_counts():
+    for name in materials:
+        st.session_state[f"count_{name}"] = 0
+    st.session_state.dropped = False
+
 if "started" not in st.session_state:
     st.session_state.started = False
     st.session_state.selected_indicator = "보라색 양배추 지시약"
@@ -50,34 +55,61 @@ if "started" not in st.session_state:
         st.session_state[f"count_{name}"] = 0
 
 
-def get_combined_result(selected_materials):
-    types = [materials[name]["type"] for name in selected_materials]
-    if "산성" in types and "염기성" in types:
-        return {
-            "type": "중성에 가까운 혼합물",
-            "label": "보라색/초록색",
-            "css": "#7d3c98",
-            "explanation": "산성과 염기성이 함께 모이면 색이 섞여서 중간색으로 변할 수 있어요.",
-        }
-    if "산성" in types:
+def get_combined_result(selected_counts):
+    acid = 0
+    base = 0
+    neutral = 0
+    for name, count in selected_counts.items():
+        if count <= 0:
+            continue
+        t = materials[name]["type"]
+        if t == "산성":
+            acid += count
+        elif t == "염기성":
+            base += count
+        else:
+            neutral += count
+
+    if acid > base and acid > neutral:
         return {
             "type": "산성",
             "label": "빨간색 또는 노란색",
             "css": "#e74c3c",
-            "explanation": "산성 물질이 많으면 지시약이 빨간색이나 노란색으로 변해요.",
+            "explanation": "산성 물질이 더 많아서 산성 쪽 색이 나와요.",
         }
-    if "염기성" in types:
+    if base > acid and base > neutral:
         return {
             "type": "염기성",
             "label": "파란색 또는 초록색",
             "css": "#2980b9",
-            "explanation": "염기성 물질이 많으면 지시약이 파란색이나 초록색으로 변해요.",
+            "explanation": "염기성 물질이 더 많아서 염기성 쪽 색이 나와요.",
+        }
+    if acid == base and acid > 0:
+        return {
+            "type": "중성에 가까운 혼합물",
+            "label": "보라색/초록색",
+            "css": "#7d3c98",
+            "explanation": "산성과 염기성이 비슷해서 중간색이 돼요.",
+        }
+    if neutral >= acid and neutral >= base:
+        return {
+            "type": "중성",
+            "label": "보라색 또는 초록색",
+            "css": "#8e44ad",
+            "explanation": "중성 물질이 많거나 비슷해서 중성 쪽 색이 나와요.",
+        }
+    if acid > base:
+        return {
+            "type": "산성",
+            "label": "빨간색 또는 노란색",
+            "css": "#e74c3c",
+            "explanation": "산성 물질이 더 많아서 산성 쪽 색이 나와요.",
         }
     return {
-        "type": "중성",
-        "label": "보라색 또는 초록색",
-        "css": "#8e44ad",
-        "explanation": "중성 물질은 지시약과 만나면 보라색이나 초록색으로 변해요.",
+        "type": "염기성",
+        "label": "파란색 또는 초록색",
+        "css": "#2980b9",
+        "explanation": "염기성 물질이 더 많아서 염기성 쪽 색이 나와요.",
     }
 
 st.title("🧪 산·염기 탐정 실험실")
@@ -107,10 +139,7 @@ if st.session_state.started:
                 label_visibility="collapsed",
             )
 
-    if st.button("선택 초기화하기"):
-        for name in materials:
-            st.session_state[f"count_{name}"] = 0
-        st.session_state.dropped = False
+    st.button("선택 초기화하기", on_click=reset_material_counts)
 
     selected_materials = [
         f"{name} x{st.session_state[f'count_{name}']}"
@@ -145,9 +174,15 @@ if st.session_state.started:
             st.session_state.dropped = True
 
     beaker = st.empty()
+    selected_counts = {
+        name: st.session_state[f"count_{name}"]
+        for name in materials
+        if st.session_state[f"count_{name}"] > 0
+    }
+
     if selected_names:
         indicator = st.session_state.selected_indicator
-        combined = get_combined_result(selected_names)
+        combined = get_combined_result(selected_counts)
 
         if st.session_state.dropped:
             result_text = (
